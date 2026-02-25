@@ -1,0 +1,6 @@
+*.gif
+AGENTS.md
+*.pyc
+*.pt
+.DS_Store
+*.pdf
