@@ -211,6 +211,9 @@ class LBFGS(Optimizer):
             value/parameter changes (default: 1e-9).
         history_size (int): update history size (default: 100).
         line_search_fn (str): either 'strong_wolfe' or None (default: None).
+        projected (bool): whether to enable projected LBFGS (default: False).
+        project_min (float): lower box bound when projected=True.
+        project_max (float): upper box bound when projected=True.
     """
 
     def __init__(
@@ -223,6 +226,9 @@ class LBFGS(Optimizer):
         tolerance_change: float = 1e-9,
         history_size: int = 100,
         line_search_fn: Optional[str] = None,
+        projected: bool = False,
+        project_min: Optional[float] = None,
+        project_max: Optional[float] = None,
     ):
         if isinstance(lr, Tensor) and lr.numel() != 1:
             raise ValueError("Tensor lr must be 1-element")
@@ -230,6 +236,15 @@ class LBFGS(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr}")
         if max_eval is None:
             max_eval = max_iter * 5 // 4
+        if projected:
+            if project_min is None or project_max is None:
+                raise ValueError(
+                    "project_min and project_max are required when projected=True"
+                )
+            if project_min > project_max:
+                raise ValueError(
+                    f"Invalid projection bounds: {project_min} > {project_max}"
+                )
         defaults = dict(
             lr=lr,
             max_iter=max_iter,
@@ -238,6 +253,9 @@ class LBFGS(Optimizer):
             tolerance_change=tolerance_change,
             history_size=history_size,
             line_search_fn=line_search_fn,
+            projected=projected,
+            project_min=project_min,
+            project_max=project_max,
         )
         super().__init__(params, defaults)
 
@@ -290,6 +308,10 @@ class LBFGS(Optimizer):
         for p, pdata in zip(self._params, params_data):
             p.copy_(pdata)
 
+    def _project_params(self, project_min: float, project_max: float):
+        for p in self._params:
+            p.clamp_(min=project_min, max=project_max)
+
     def _directional_evaluate(self, closure, x, t, d):
         self._add_grad(t, d)
         loss = float(closure())
@@ -318,6 +340,9 @@ class LBFGS(Optimizer):
         tolerance_change = group["tolerance_change"]
         line_search_fn = group["line_search_fn"]
         history_size = group["history_size"]
+        projected = group["projected"]
+        project_min = group["project_min"]
+        project_max = group["project_max"]
 
         # NOTE: LBFGS has only global state, but we register it as state for
         # the first param, because this helps with casting in load_state_dict
@@ -490,5 +515,11 @@ class LBFGS(Optimizer):
         state["H_diag"] = H_diag
         state["prev_flat_grad"] = prev_flat_grad
         state["prev_loss"] = prev_loss
+
+        # Keep line-search/closure evaluations unconstrained and apply projection
+        # once per optimizer step, matching projected quasi-Newton usage.
+        if projected:
+            assert project_min is not None and project_max is not None
+            self._project_params(project_min, project_max)
 
         return orig_loss
