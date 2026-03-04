@@ -4,3 +4,4 @@ AGENTS.md
 *.pt
 .DS_Store
 *.pdf
+*.pth
