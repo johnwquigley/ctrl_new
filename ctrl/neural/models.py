@@ -1,5 +1,3 @@
-from typing import Callable, Optional
-
 import torch
 import torch.nn as nn
 
@@ -81,43 +79,3 @@ class PhysicsTruckEmulator(nn.Module):
         theta0_next = theta0 + self.v / self.l * torch.tan(phi)
         theta1_next = theta1 + self.v / self.d * torch.sin(theta0 - theta1)
         return torch.stack((x_next, y_next, theta0_next, theta1_next), dim=-1)
-
-
-class RecurrentTrajectoryModel(nn.Module):
-    def __init__(
-        self,
-        controller: nn.Module,
-        emulator: Optional[nn.Module],
-        step_fn: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
-    ):
-        super().__init__()
-        self.controller = controller
-        self.emulator = emulator
-        self.step_fn = step_fn
-        if self.emulator is None and self.step_fn is None:
-            raise ValueError("Provide emulator or step_fn.")
-        if self.emulator is not None:
-            self.emulator.eval()
-
-    def _step(self, em_input: torch.Tensor) -> torch.Tensor:
-        if self.emulator is not None:
-            return self.emulator(em_input)
-        return self.step_fn(em_input)
-
-    def forward(self, initial_state: torch.Tensor, steps: int):
-        trajectory = []
-        actions = []
-        current_state = initial_state
-
-        for _ in range(steps):
-            action = self.controller(current_state)
-            tan_action = torch.atan(action)
-            actions.append(tan_action)
-
-            em_input = torch.cat([tan_action, current_state], dim=-1)
-            next_state = self._step(em_input)
-
-            trajectory.append(next_state)
-            current_state = next_state
-
-        return torch.stack(trajectory, dim=1), torch.stack(actions, dim=1)

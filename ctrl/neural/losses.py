@@ -1,9 +1,19 @@
-import math
+from typing import Any
 
 import torch
 import torch.nn as nn
 
-from .config import EnvConfig
+CONTROLLER_BOUNDARY_MARGIN = 2.0
+CONTROLLER_BOUNDARY_WEIGHT = 0.0
+
+
+def _trailer_xy_from_traj(traj: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, torch.Tensor]:
+    # Same geometry as ctrl.truck_data_gen.trailer_xy, vectorized for [..., 4] trajectories.
+    x = traj[..., 0]
+    theta1 = traj[..., 3]
+    trailer_x = x - cfg.hitch_length * torch.cos(theta1)
+    trailer_y = traj[..., 1] - cfg.hitch_length * torch.sin(theta1)
+    return trailer_x, trailer_y
 
 
 def criterion_emulator(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -12,38 +22,70 @@ def criterion_emulator(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor
     )
 
 
-def criterion_controller(
+def controller_loss_terms(
     actions: torch.Tensor,
     traj: torch.Tensor,
     target_pos: torch.Tensor,
-    cfg: EnvConfig,
-) -> torch.Tensor:
-    x = traj[..., 0]
-    y = traj[..., 1]
+    cfg: Any,
+) -> dict[str, torch.Tensor]:
     theta0 = traj[..., 2]
     theta1 = traj[..., 3]
-
-    xmin, xmax = cfg.env_x_range
-    ymin, ymax = cfg.env_y_range
-    soft_boundary = 3.0
-    jack_thresh = math.pi / 2.5
+    trailer_x, trailer_y = _trailer_xy_from_traj(traj, cfg)
+    wrapped_delta = torch.atan2(torch.sin(theta0 - theta1), torch.cos(theta0 - theta1)).abs()
 
     # Kept for notebook parity (currently unused directly).
     _ = actions
 
-    region_pen = (
-        torch.relu(x - xmax + soft_boundary).pow(2).sum()
-        + torch.relu(-x + xmin + soft_boundary).pow(2).sum()
-        + torch.relu(y - ymax + soft_boundary).pow(2).sum()
-        + torch.relu(-y + ymin + soft_boundary).pow(2).sum()
-    )
-    jack_pen = torch.relu(torch.abs(theta0 - theta1) - jack_thresh).pow(2).sum()
-    process_pen = region_pen + 10.0 * jack_pen
+    final_x_pen = (trailer_x[..., -1] - target_pos[0]).pow(2).sum()
+    final_y_pen = (trailer_y[..., -1] - target_pos[1]).pow(2).sum()
 
-    final_dest_pen = (
-        (x[..., -1] - target_pos[0]).pow(2).sum()
-        + (y[..., -1] - target_pos[1]).pow(2).sum()
-        + (theta0[..., -1] - target_pos[2]).pow(2).sum()
-        + (theta1[..., -1] - target_pos[3]).pow(2).sum()
+    # final_theta0_pen = (theta0[..., -1]).pow(2).sum()
+    # final_theta1_pen = (theta1[..., -1]).pow(2).sum()
+    final_theta0_pen = torch.tensor([0.0])
+    final_theta1_pen = torch.tensor([0.0])
+
+    delta_thresh = torch.deg2rad(torch.tensor(45.0, device=traj.device, dtype=traj.dtype))
+    jackknife_pen = torch.where(
+        wrapped_delta >= delta_thresh,
+        (wrapped_delta - delta_thresh).pow(2),
+        torch.zeros_like(wrapped_delta),
+    ).sum()
+    # jackknife_pen = wrapped_delta.pow(2).sum()
+
+    # Repel trajectories from the environment boundary using ReLU-squared.
+    xmin, xmax = cfg.env_x_range
+    ymin, ymax = cfg.env_y_range
+    boundary_pen = CONTROLLER_BOUNDARY_WEIGHT * (
+        torch.relu((xmin + CONTROLLER_BOUNDARY_MARGIN) - trailer_x).pow(2)
+        + torch.relu(trailer_x - (xmax - CONTROLLER_BOUNDARY_MARGIN)).pow(2)
+        + torch.relu((ymin + CONTROLLER_BOUNDARY_MARGIN) - trailer_y).pow(2)
+        + torch.relu(trailer_y - (ymax - CONTROLLER_BOUNDARY_MARGIN)).pow(2)
+    ).mean()
+
+    total_pen = (
+        final_x_pen
+        + final_y_pen
+        + final_theta0_pen
+        + final_theta1_pen
+        + jackknife_pen
+        + boundary_pen
     )
-    return process_pen + final_dest_pen
+
+    return {
+        "total": total_pen,
+        "final_x": final_x_pen,
+        "final_y": final_y_pen,
+        "final_theta0": final_theta0_pen,
+        "final_theta1": final_theta1_pen,
+        "jackknife": jackknife_pen,
+        "boundary": boundary_pen,
+    }
+
+
+def criterion_controller(
+    actions: torch.Tensor,
+    traj: torch.Tensor,
+    target_pos: torch.Tensor,
+    cfg: Any,
+) -> torch.Tensor:
+    return controller_loss_terms(actions, traj, target_pos, cfg)["total"]
