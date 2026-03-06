@@ -11,6 +11,16 @@ def _deg2rad(deg: float) -> float:
     return deg * math.pi / 180.0
 
 
+def _interp_range(
+    start: tuple[float, float], end: tuple[float, float], alpha: float
+) -> tuple[float, float]:
+    a = max(0.0, min(1.0, float(alpha)))
+    return (
+        (1.0 - a) * float(start[0]) + a * float(end[0]),
+        (1.0 - a) * float(start[1]) + a * float(end[1]),
+    )
+
+
 def _step_scalar(
     x_c: float, y_c: float, theta0: float, theta1: float, phi: float, cfg: Any
 ) -> tuple[float, float, float, float]:
@@ -76,11 +86,56 @@ def create_controller_dataset(
         half = 0.5 * (hi - lo) * d
         return (center - half, center + half)
 
-    x_range = getattr(cfg, "controller_x_init_range", cfg.env_x_range)
-    y_range = getattr(cfg, "controller_y_init_range", cfg.env_y_range)
-    theta0_range_deg = _scaled_range(cfg.theta0_range_deg, difficulty)
-    # Keep initial articulation away from jackknife: |theta1 - theta0| <= 45 deg.
-    theta1_diff_range_deg = (-10.0, 10.0)
+    d = max(0.0, min(1.0, float(difficulty)))
+    curriculum_start_difficulty = float(
+        getattr(cfg, "controller_curriculum_start_difficulty", 0.2)
+    )
+    curriculum_start_difficulty = max(0.0, min(1.0, curriculum_start_difficulty))
+    if curriculum_start_difficulty >= 1.0:
+        alpha = 1.0 if d >= 1.0 else 0.0
+    else:
+        alpha = (d - curriculum_start_difficulty) / (1.0 - curriculum_start_difficulty)
+        alpha = max(0.0, min(1.0, alpha))
+
+    x_start = getattr(
+        cfg,
+        "controller_x_init_start_range",
+        getattr(cfg, "controller_x_init_range", cfg.env_x_range),
+    )
+    x_final = getattr(
+        cfg,
+        "controller_x_init_final_range",
+        getattr(cfg, "controller_x_init_range", cfg.env_x_range),
+    )
+    y_start = getattr(
+        cfg,
+        "controller_y_init_start_range",
+        getattr(cfg, "controller_y_init_range", cfg.env_y_range),
+    )
+    y_final = getattr(
+        cfg,
+        "controller_y_init_final_range",
+        getattr(cfg, "controller_y_init_range", cfg.env_y_range),
+    )
+    theta0_start_range_deg = getattr(
+        cfg,
+        "controller_theta0_init_start_range_deg",
+        _scaled_range(cfg.theta0_range_deg, curriculum_start_difficulty),
+    )
+    theta0_final_range_deg = getattr(
+        cfg, "controller_theta0_init_final_range_deg", cfg.theta0_range_deg
+    )
+    theta1_diff_start_range_deg = getattr(cfg, "controller_delta_start_range_deg", (-10.0, 10.0))
+    theta1_diff_final_range_deg = getattr(
+        cfg, "controller_delta_final_range_deg", theta1_diff_start_range_deg
+    )
+
+    x_range = _interp_range(x_start, x_final, alpha)
+    y_range = _interp_range(y_start, y_final, alpha)
+    theta0_range_deg = _interp_range(theta0_start_range_deg, theta0_final_range_deg, alpha)
+    theta1_diff_range_deg = _interp_range(
+        theta1_diff_start_range_deg, theta1_diff_final_range_deg, alpha
+    )
 
     dataset_inputs = []
     desc = f"Creating controller dataset (difficulty={difficulty:.2f})"

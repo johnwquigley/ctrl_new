@@ -47,13 +47,9 @@ def _state_validity_terms(state: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, 
 
 
 def _is_success_batch(state: torch.Tensor, cfg: Any) -> torch.Tensor:
-    # Success-stop is intentionally disabled for now:
-    # terminate only on failure (jackknife/oob) or max_rollout_steps.
-    # trailer_x, trailer_y = _trailer_xy_batch(state, cfg)
-    # success_radius = float(getattr(cfg, "controller_success_radius", 0.1))
-    # return (trailer_x.pow(2) + trailer_y.pow(2)) <= (success_radius**2)
-    _ = cfg
-    return torch.zeros(state.size(0), dtype=torch.bool, device=state.device)
+    trailer_x, trailer_y = _trailer_xy_batch(state, cfg)
+    success_radius = float(getattr(cfg, "controller_success_radius", 0.01))
+    return (trailer_x.pow(2) + trailer_y.pow(2)) <= (success_radius**2)
 
 
 def train_rollout(
@@ -153,6 +149,7 @@ def train_controller(
         "batch_final_theta0": [],
         "batch_final_theta1": [],
         "batch_jackknife": [],
+        "batch_final_dist_lt_0p1_ratio": [],
         "batch_rollout_steps": [],
         "batch_final_alive_ratio": [],
         "batch_stop_reason_jackknife_ratio": [],
@@ -227,6 +224,12 @@ def train_controller(
             loss = terms["total"]
             jackknifed_end, in_box_end = _state_validity_terms(current_state, cfg)
             success_end = _is_success_batch(current_state, cfg)
+            trailer_x_end, trailer_y_end = _trailer_xy_batch(current_state, cfg)
+            final_dist = torch.sqrt(
+                (trailer_x_end - target_position[0]).pow(2)
+                + (trailer_y_end - target_position[1]).pow(2)
+            )
+            final_dist_lt_0p1_ratio = (final_dist < 0.1).float().mean().item()
             terminated = ~alive
             timed_out = alive & (step >= max_rollout_steps)
             stop_jackknife = terminated & jackknifed_end
@@ -254,6 +257,7 @@ def train_controller(
             history["batch_jackknife"].append(
                 terms["jackknife"].item() / max(1, batch_size)
             )
+            history["batch_final_dist_lt_0p1_ratio"].append(final_dist_lt_0p1_ratio)
             history["batch_rollout_steps"].append(float(step))
             history["batch_final_alive_ratio"].append(alive.float().mean().item())
             history["batch_stop_reason_jackknife_ratio"].append(stop_jackknife_ratio)
