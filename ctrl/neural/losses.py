@@ -39,12 +39,12 @@ def controller_loss_terms(
     final_x_pen = (trailer_x[..., -1] - target_pos[0]).pow(2).sum()
     final_y_pen = (trailer_y[..., -1] - target_pos[1]).pow(2).sum()
 
-    # final_theta0_pen = (theta0[..., -1]).pow(2).sum()
-    # final_theta1_pen = (theta1[..., -1]).pow(2).sum()
-    final_theta0_pen = torch.tensor([0.0])
-    final_theta1_pen = torch.tensor([0.0])
+    final_theta0_pen = (theta0[..., -1]).pow(2).sum()
+    final_theta1_pen = (theta1[..., -1]).pow(2).sum()
+    # final_theta0_pen = torch.tensor([0.0])
+    # final_theta1_pen = torch.tensor([0.0])
 
-    delta_thresh = torch.deg2rad(torch.tensor(45.0, device=traj.device, dtype=traj.dtype))
+    delta_thresh = torch.deg2rad(torch.tensor(75.0, device=traj.device, dtype=traj.dtype))
     jackknife_pen = torch.where(
         wrapped_delta >= delta_thresh,
         (wrapped_delta - delta_thresh).pow(2),
