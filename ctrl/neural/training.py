@@ -150,6 +150,7 @@ def train_controller(
         "batch_final_theta1": [],
         "batch_jackknife": [],
         "batch_final_dist_lt_0p1_ratio": [],
+        "batch_final_dist_lt_1p0_ratio": [],
         "batch_rollout_steps": [],
         "batch_final_alive_ratio": [],
         "batch_stop_reason_jackknife_ratio": [],
@@ -183,7 +184,9 @@ def train_controller(
         total_final_theta1 = 0.0
         total_jackknife = 0.0
         for inputs in tqdm(
-            dataloader, desc=f"Training Controller Epoch {epoch + 1}/{epochs}"
+            dataloader,
+            desc=f"Training Controller Epoch {epoch + 1}/{epochs}",
+            leave=False,
         ):
             initial_state = inputs[0] if isinstance(inputs, (tuple, list)) else inputs
             initial_state = initial_state.to(device)
@@ -230,6 +233,7 @@ def train_controller(
                 + (trailer_y_end - target_position[1]).pow(2)
             )
             final_dist_lt_0p1_ratio = (final_dist < 0.1).float().mean().item()
+            final_dist_lt_1p0_ratio = (final_dist < 1.0).float().mean().item()
             terminated = ~alive
             timed_out = alive & (step >= max_rollout_steps)
             stop_jackknife = terminated & jackknifed_end
@@ -258,6 +262,7 @@ def train_controller(
                 terms["jackknife"].item() / max(1, batch_size)
             )
             history["batch_final_dist_lt_0p1_ratio"].append(final_dist_lt_0p1_ratio)
+            history["batch_final_dist_lt_1p0_ratio"].append(final_dist_lt_1p0_ratio)
             history["batch_rollout_steps"].append(float(step))
             history["batch_final_alive_ratio"].append(alive.float().mean().item())
             history["batch_stop_reason_jackknife_ratio"].append(stop_jackknife_ratio)
