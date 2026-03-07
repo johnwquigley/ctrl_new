@@ -58,14 +58,19 @@ class TruckController(nn.Module):
 
 
 class PhysicsTruckEmulator(nn.Module):
-    # Deterministic one-step truck dynamics with hardcoded geometry.
+    # Deterministic one-step truck dynamics.
     # Input:  [phi, x, y, theta0, theta1]
     # Output: [x_next, y_next, theta0_next, theta1_next]
-    def __init__(self):
+    def __init__(
+        self,
+        truck_speed: float = -0.1,
+        wheelbase: float = 1.0,
+        hitch_length: float = 4.0,
+    ):
         super().__init__()
-        self.v = -1.0
-        self.l = 1.0
-        self.d = 4.0
+        self.v = float(truck_speed)
+        self.l = float(wheelbase)
+        self.d = float(hitch_length)
 
     def forward(self, em_input: torch.Tensor) -> torch.Tensor:
         phi = em_input[..., 0]
