@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 import math
 import random
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Literal, Tuple
 
 import torch
 import torch.nn as nn
+from ctrl.neural.models import TruckController
 
 
 @dataclass
@@ -20,7 +18,6 @@ class EvalConfig:
     hitch_length: float = 4.0
     success_radius: float = 0.01
     max_steps: int = 400
-    steer_clip_deg: float = 45.0
 
 
 def create_train_configs_tbu(
@@ -129,18 +126,25 @@ def sample_initial_phi_rad() -> float:
             return math.radians(deg)
 
 
-def load_controller(path: str, device: torch.device) -> nn.Module:
+def load_controller(
+    path: str, device: torch.device, inference_mode: Literal["student", "me"]
+) -> nn.Module:
     obj = torch.load(path, map_location=device, weights_only=False)
     if isinstance(obj, nn.Module):
         model = obj
     elif isinstance(obj, dict):
-        model = nn.Sequential(
-            nn.Linear(5, 100),
-            nn.GELU(),
-            nn.Linear(100, 100),
-            nn.GELU(),
-            nn.Linear(100, 1),
-        )
+        if inference_mode == "student":
+            model = nn.Sequential(
+                nn.Linear(5, 100),
+                nn.GELU(),
+                nn.Linear(100, 100),
+                nn.GELU(),
+                nn.Linear(100, 1),
+            )
+        elif inference_mode == "me":
+            model = TruckController(state_dim=4)
+        else:
+            raise ValueError(f"Unsupported inference_mode={inference_mode}")
         model.load_state_dict(obj)
     else:
         raise TypeError(f"Unsupported checkpoint type: {type(obj)}")
@@ -155,7 +159,7 @@ def evaluate_stage(
     cfg: EvalConfig,
     num_samples: int,
     device: torch.device,
-    clamp_action: bool,
+    inference_mode: Literal["student", "me"],
 ) -> Dict[str, float]:
     steps_list = []
     dists = []
@@ -163,7 +167,7 @@ def evaluate_stage(
     stop_oob = 0
     stop_success = 0
     stop_timeout = 0
-    phi_clip = math.radians(cfg.steer_clip_deg)
+    phi_clip = math.radians(45.0)
     with torch.no_grad():
         for _ in range(num_samples):
             state = sample_initial_state(stage_cfg, cfg).to(device)
@@ -173,11 +177,21 @@ def evaluate_stage(
                 alive = (not bool(is_jackknifed(state))) and bool(in_box_tail(state, cfg)) and (not bool(is_success(state, cfg)))
                 if not alive:
                     break
-                ctrl_in = torch.cat((phi_prev, state), dim=0).unsqueeze(0)  # [1, 5]
+                if inference_mode == "student":
+                    ctrl_in = torch.cat((phi_prev, state), dim=0).unsqueeze(0)  # [1, 5]
+                elif inference_mode == "me":
+                    ctrl_in = state.unsqueeze(0)  # [1, 4]
+                else:
+                    raise ValueError(f"Unsupported inference_mode={inference_mode}")
                 phi_next = model(ctrl_in).reshape(-1)[0]
-                if clamp_action:
+                if inference_mode == "student":
+                    # Student behavior: apply previous action, then shift in predicted action.
+                    phi_apply = phi_prev
+                elif inference_mode == "me":
+                    # behavior: apply predicted action in the same step.
                     phi_next = torch.clamp(phi_next, -phi_clip, phi_clip)
-                state = step_physics(state.unsqueeze(0), phi_prev, cfg).squeeze(0)
+                    phi_apply = phi_next.reshape(1)
+                state = step_physics(state.unsqueeze(0), phi_apply, cfg).squeeze(0)
                 phi_prev = phi_next.reshape(1)
                 steps += 1
 
@@ -220,9 +234,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--max-steps", type=int, default=400)
-    parser.add_argument("--success-radius", type=float, default=0.01)
-    parser.add_argument("--clamp-action", action="store_true", help="Clamp controller output to +/- steer-clip-deg.")
-    parser.add_argument("--steer-clip-deg", type=float, default=45.0)
+    parser.add_argument("--success-radius", type=float, default=0.1)
+    parser.add_argument(
+        "--inference-mode",
+        type=str,
+        choices=["student", "me"],
+        default="student",
+        help="student: 1-step lag action application; me: apply predicted action immediately.",
+    )
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -232,15 +251,14 @@ def main() -> None:
     cfg = EvalConfig(
         max_steps=args.max_steps,
         success_radius=args.success_radius,
-        steer_clip_deg=args.steer_clip_deg,
     )
 
-    model = load_controller(args.checkpoint, device)
+    model = load_controller(args.checkpoint, device, args.inference_mode)
     curriculum = create_train_configs_tbu(num_lessons=10)
 
     print(f"checkpoint={args.checkpoint}")
     print(f"samples_per_stage={args.samples_per_stage} max_steps={cfg.max_steps} success_radius={cfg.success_radius}")
-    print(f"clamp_action={args.clamp_action} steer_clip_deg={cfg.steer_clip_deg}")
+    print(f"inference_mode={args.inference_mode}")
     print("")
 
     all_denom = 0.0
@@ -262,7 +280,7 @@ def main() -> None:
             cfg=cfg,
             num_samples=args.samples_per_stage,
             device=device,
-            clamp_action=args.clamp_action,
+            inference_mode=args.inference_mode,
         )
         n = res["samples"]
         all_denom += n

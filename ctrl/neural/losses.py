@@ -67,8 +67,8 @@ def controller_loss_terms(
         + final_y_pen
         + final_theta0_pen
         + final_theta1_pen
-        + jackknife_pen
-        + boundary_pen
+        # + jackknife_pen
+        # + boundary_pen
     )
 
     return {

@@ -17,12 +17,9 @@ def _trailer_xy_batch(state: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, torc
     return trailer_x, trailer_y
 
 
-def _is_valid_batch(state: torch.Tensor, cfg: Any) -> torch.Tensor:
-    jackknifed, in_box = _state_validity_terms(state, cfg)
-    return (~jackknifed) & in_box
-
-
-def _state_validity_terms(state: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, torch.Tensor]:
+def _state_status_terms(
+    state: torch.Tensor, cfg: Any
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     # state: [B, 4] -> [x, y, theta0, theta1]
     theta0 = state[:, 2]
     theta1 = state[:, 3]
@@ -43,13 +40,12 @@ def _state_validity_terms(state: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, 
         & (trailer_y <= ymax)
     )
 
-    return jackknifed, in_box
+    # Consider success as terminal even when a sample is slightly OOB.
+    success_radius = float(getattr(cfg, "controller_success_radius", 0.1))
+    success = (trailer_x.pow(2) + trailer_y.pow(2)) <= (success_radius**2)
+    active = (~jackknifed) & in_box & (~success)
 
-
-def _is_success_batch(state: torch.Tensor, cfg: Any) -> torch.Tensor:
-    trailer_x, trailer_y = _trailer_xy_batch(state, cfg)
-    success_radius = float(getattr(cfg, "controller_success_radius", 0.01))
-    return (trailer_x.pow(2) + trailer_y.pow(2)) <= (success_radius**2)
+    return jackknifed, in_box, success, active
 
 
 def train_rollout(
@@ -195,7 +191,7 @@ def train_controller(
             current_state = initial_state
             traj = []
             actions = []
-            alive = _is_valid_batch(current_state, cfg) & (~_is_success_batch(current_state, cfg))
+            _, _, _, alive = _state_status_terms(current_state, cfg)
             step = 0
             while step < max_rollout_steps and alive.any():
                 raw_action = controller(current_state)
@@ -213,9 +209,8 @@ def train_controller(
                 actions.append(action)
                 traj.append(next_state)
                 current_state = next_state
-                alive = alive & _is_valid_batch(current_state, cfg) & (
-                    ~_is_success_batch(current_state, cfg)
-                )
+                _, _, _, active = _state_status_terms(current_state, cfg)
+                alive = alive & active
                 step += 1
 
             if not traj:
@@ -225,8 +220,9 @@ def train_controller(
             actions = torch.stack(actions, dim=1)
             terms = controller_loss_terms(actions, traj, target_position, cfg)
             loss = terms["total"]
-            jackknifed_end, in_box_end = _state_validity_terms(current_state, cfg)
-            success_end = _is_success_batch(current_state, cfg)
+            jackknifed_end, in_box_end, success_end, _ = _state_status_terms(
+                current_state, cfg
+            )
             trailer_x_end, trailer_y_end = _trailer_xy_batch(current_state, cfg)
             final_dist = torch.sqrt(
                 (trailer_x_end - target_position[0]).pow(2)
@@ -237,8 +233,8 @@ def train_controller(
             terminated = ~alive
             timed_out = alive & (step >= max_rollout_steps)
             stop_jackknife = terminated & jackknifed_end
-            stop_oob = terminated & (~jackknifed_end) & (~in_box_end)
-            stop_success = terminated & (~jackknifed_end) & in_box_end & success_end
+            stop_success = terminated & (~jackknifed_end) & success_end
+            stop_oob = terminated & (~jackknifed_end) & (~success_end) & (~in_box_end)
             stop_timeout = timed_out
             reason_denom = max(1, batch_size)
             stop_jackknife_ratio = stop_jackknife.float().sum().item() / reason_denom
