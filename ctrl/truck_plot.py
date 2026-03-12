@@ -9,6 +9,7 @@ import torch
 __all__ = [
     'plot_truck_xu',
     'plot_truck',
+    'plot_truck_fixed_view',
     'plot_signal',
     'plot_truck_cost_design',
     'plot_multi_us',
@@ -206,6 +207,99 @@ def plot_truck(coords, y_target=None, car=True, save_path=None):
     plt.close()  # Prevent static plot showing up
     if save_path:
         anim.save(save_path, writer='pillow', fps=20)
+
+    return HTML(anim.to_jshtml())
+
+
+def plot_truck_fixed_view(
+    coords,
+    cfg,
+    y_target=None,
+    car=True,
+    save_path=None,
+    play_speed: float = 1.0,
+    pad_ratio: float = 0.05,
+):
+    plt.style.use(['dark_background', 'bmh'])
+    fig, ax = plt.subplots(figsize=(9, 5), dpi=100)
+    ax.set_facecolor('black')
+
+    l, d = 1.0, 4.0
+    cab_w, tr_w = 1.0, 1.0
+    delta_theta_warn = np.pi / 2
+
+    xmin, xmax = cfg.env_x_range
+    ymin, ymax = cfg.env_y_range
+    xpad = (xmax - xmin) * float(pad_ratio)
+    ypad = (ymax - ymin) * float(pad_ratio)
+    ax.set_xlim(float(xmin) - xpad, float(xmax) + xpad)
+    ax.set_ylim(float(ymin) - ypad, float(ymax) + ypad)
+    ax.set_aspect('equal')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    if y_target is None:
+        target_x, target_y = 0.0, 0.0
+    else:
+        target_x, target_y = float(y_target[0]), float(y_target[1])
+    ax.scatter(target_x, target_y, marker='x', color='darkgray',
+               s=60, zorder=10, label='Target')
+
+    cab_patch = patches.Polygon([[0, 0]], color='C2', alpha=1.0, zorder=5)
+    trailer_patch = patches.Polygon([[0, 0]], color='C0', alpha=1.0, zorder=4)
+    ax.add_patch(cab_patch)
+    ax.add_patch(trailer_patch)
+    ax.plot(coords[:, 0], coords[:, 1], 'w--', alpha=0.2, lw=1)
+
+    warn_text = ax.text(
+        0.02, 0.95, '',
+        transform=ax.transAxes,
+        color='red',
+        fontsize=12,
+        fontweight='bold',
+        va='top'
+    )
+
+    def get_poly(cx, cy, angle, length, width, is_trailer=False):
+        x_off = -length if is_trailer else 0
+        rect = np.array([
+            [x_off, -width / 2], [x_off + length, -width / 2],
+            [x_off + length, width / 2], [x_off, width / 2]
+        ])
+        c, s = np.cos(angle), np.sin(angle)
+        rot = np.array([[c, -s], [s, c]])
+        return (rect @ rot.T) + np.array([cx, cy])
+
+    def update(frame):
+        state = coords[frame].numpy()
+        x, y, th_c, th_t = state[0], state[1], state[2], state[3]
+
+        cab_patch.set_xy(get_poly(x, y, th_c, l, cab_w))
+        trailer_patch.set_xy(get_poly(x, y, th_t, d, tr_w, is_trailer=True))
+
+        if abs(th_c - th_t) > delta_theta_warn:
+            trailer_patch.set_color('red')
+            warn_text.set_text('JACKKNIFED!')
+        else:
+            trailer_patch.set_color('C0')
+            warn_text.set_text('')
+
+        return cab_patch, trailer_patch, warn_text
+
+    speed = max(0.05, float(play_speed))
+    interval_ms = max(1, int(round(50.0 / speed)))
+    gif_fps = max(1, int(round(20.0 * speed)))
+    anim = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(coords),
+        blit=True,
+        interval=interval_ms,
+    )
+
+    plt.close()
+    if save_path:
+        anim.save(save_path, writer='pillow', fps=gif_fps)
 
     return HTML(anim.to_jshtml())
 

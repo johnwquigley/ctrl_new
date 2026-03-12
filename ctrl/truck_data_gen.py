@@ -2,16 +2,31 @@ import os
 import torch
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
+from dataclasses import dataclass
 
 from local_optim import LBFGS
 
 PI = torch.pi
 
 
+@dataclass(frozen=True)
+class EnvConfig:
+    env_x_range: tuple[float, float] = (0.0, 50.0)
+    env_y_range: tuple[float, float] = (-15.0, 15.0)
+    theta0_range_deg: tuple[float, float] = (-180.0, 180.0)
+    theta1_range_deg: tuple[float, float] = (-180.0, 180.0)
+    truck_speed: float = -0.1
+    wheelbase: float = 1.0
+    hitch_length: float = 4.0
+
+
+CFG = EnvConfig()
+
+
 def truck_dynamics(x, u):
-    l = 1
-    d = 4
-    v = -1.0
+    l = CFG.wheelbase
+    d = CFG.hitch_length
+    v = CFG.truck_speed
 
     x_pos, y_pos, theta_cab, theta_truck = x
     phi = u[0] if u.ndim else u
@@ -24,7 +39,7 @@ def truck_dynamics(x, u):
     return f
 
 
-def integrate(f, x0, u, dt=1):
+def integrate(f, x0, u, dt=1.0):
     n_steps = len(u)
     x = [0] * (n_steps + 1)
     x[0] = x0
@@ -34,7 +49,7 @@ def integrate(f, x0, u, dt=1):
 
 
 def trailer_xy(x):
-    d = 4
+    d = CFG.hitch_length
     x_pos, y_pos, _, theta_truck = x
     xt = x_pos - d * torch.cos(theta_truck)
     yt = y_pos - d * torch.sin(theta_truck)
@@ -234,21 +249,6 @@ def generate_data_fast(
     use_action_cost=True,
     out_path=None,
 ):
-    if n_list is None:
-        n_list = [10, 15, 20, 25, 30, 35, 40, 45, 50]
-
-    if out_path is None:
-        out_path = (
-            "truck_regression_data_projected_waction.pt"
-            if use_action_cost
-            else "truck_regression_data_woaction.pt"
-        )
-
-    if max_workers is None:
-        max_workers = min(14, os.cpu_count() or 1)
-    else:
-        max_workers = min(int(max_workers), os.cpu_count() or int(max_workers))
-
     torch.manual_seed(seed)
     y_goal = torch.tensor((0.0, 0.0, 0.0), dtype=torch.float32)
 
@@ -257,8 +257,8 @@ def generate_data_fast(
         alpha0 = torch.empty(1).uniform_(-PI, PI).item()
         x0 = torch.tensor(
             (
-                torch.empty(1).uniform_(2.0, 38.0).item(),
-                torch.empty(1).uniform_(-18.0, 18.0).item(),
+                torch.empty(1).uniform_(*CFG.env_x_range).item(),
+                torch.empty(1).uniform_(*CFG.env_y_range).item(),
                 alpha0,
                 torch.empty(1).uniform_(-PI / 6, PI / 6).item() + alpha0,
             ),

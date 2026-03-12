@@ -8,18 +8,16 @@ CONTROLLER_BOUNDARY_WEIGHT = 0.0
 
 
 def _trailer_xy_from_traj(traj: torch.Tensor, cfg: Any) -> tuple[torch.Tensor, torch.Tensor]:
-    # Same geometry as ctrl.truck_data_gen.trailer_xy, vectorized for [..., 4] trajectories.
+    """Trailer axle position for trajectories with last dim [x, y, theta0, theta1]."""
     x = traj[..., 0]
     theta1 = traj[..., 3]
-    trailer_x = x - cfg.hitch_length * torch.cos(theta1)
-    trailer_y = traj[..., 1] - cfg.hitch_length * torch.sin(theta1)
-    return trailer_x, trailer_y
+    return x - cfg.hitch_length * torch.cos(theta1), traj[..., 1] - cfg.hitch_length * torch.sin(theta1)
 
 
 def criterion_emulator(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    return nn.MSELoss()(pred[:, :2], target[:, :2]) + 10.0 * nn.MSELoss()(
-        pred[:, 2:4], target[:, 2:4]
-    )
+    """Weighted one-step emulator loss (angles weighted higher)."""
+    mse = nn.MSELoss()
+    return mse(pred[:, :2], target[:, :2]) + 10.0 * mse(pred[:, 2:4], target[:, 2:4])
 
 
 def controller_loss_terms(
@@ -28,21 +26,19 @@ def controller_loss_terms(
     target_pos: torch.Tensor,
     cfg: Any,
 ) -> dict[str, torch.Tensor]:
+    """Compute controller optimization terms from rollout trajectory."""
     theta0 = traj[..., 2]
     theta1 = traj[..., 3]
     trailer_x, trailer_y = _trailer_xy_from_traj(traj, cfg)
     wrapped_delta = torch.atan2(torch.sin(theta0 - theta1), torch.cos(theta0 - theta1)).abs()
 
-    # Kept for notebook parity (currently unused directly).
+    # Kept for API parity; currently not used in total objective.
     _ = actions
 
     final_x_pen = (trailer_x[..., -1] - target_pos[0]).pow(2).sum()
     final_y_pen = (trailer_y[..., -1] - target_pos[1]).pow(2).sum()
-
     final_theta0_pen = (theta0[..., -1]).pow(2).sum()
     final_theta1_pen = (theta1[..., -1]).pow(2).sum()
-    # final_theta0_pen = torch.tensor([0.0])
-    # final_theta1_pen = torch.tensor([0.0])
 
     delta_thresh = torch.deg2rad(torch.tensor(75.0, device=traj.device, dtype=traj.dtype))
     jackknife_pen = torch.where(
@@ -50,9 +46,7 @@ def controller_loss_terms(
         (wrapped_delta - delta_thresh).pow(2),
         torch.zeros_like(wrapped_delta),
     ).sum()
-    # jackknife_pen = wrapped_delta.pow(2).sum()
 
-    # Repel trajectories from the environment boundary using ReLU-squared.
     xmin, xmax = cfg.env_x_range
     ymin, ymax = cfg.env_y_range
     boundary_pen = CONTROLLER_BOUNDARY_WEIGHT * (
@@ -62,15 +56,7 @@ def controller_loss_terms(
         + torch.relu(trailer_y - (ymax - CONTROLLER_BOUNDARY_MARGIN)).pow(2)
     ).mean()
 
-    total_pen = (
-        final_x_pen
-        + final_y_pen
-        + final_theta0_pen
-        + final_theta1_pen
-        # + jackknife_pen
-        # + boundary_pen
-    )
-
+    total_pen = final_x_pen + final_y_pen + final_theta0_pen + final_theta1_pen
     return {
         "total": total_pen,
         "final_x": final_x_pen,
@@ -88,4 +74,5 @@ def criterion_controller(
     target_pos: torch.Tensor,
     cfg: Any,
 ) -> torch.Tensor:
+    """Controller scalar objective used for optimization."""
     return controller_loss_terms(actions, traj, target_pos, cfg)["total"]
