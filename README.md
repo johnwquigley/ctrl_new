@@ -42,7 +42,8 @@ Useful commands:
 - `python eval.py --inference-mode me --checkpoint ctrl/pth/neural/controller_latest.pth --max-steps 400 --curriculum-mode xy_only`
 
 TO BE IMPROVED PLOTS FOR SUCCESS REGION
-
+![0.1](vis/xy_only_curriculum_rectangles_lt_1p0.png)
+![0.1](vis/xy_only_curriculum_rectangles_lt_0p1.png)
 ![0.1](vis/xy_only_final_dist_lt_0p1.png)
 ![1.0](vis/xy_only_final_dist_lt_1p0.png)
 
