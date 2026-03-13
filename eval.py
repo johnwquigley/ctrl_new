@@ -25,6 +25,7 @@ def create_train_configs_tbu(
     y_cab_range_abs: Tuple[float, float] = (2.0, 7.0),
     cab_angle_range_abs: Tuple[float, float] = (10.0, 180.0),
     cab_trailer_angle_diff_range_abs: Tuple[float, float] = (10.0, 45.0),
+    persist_max_angles: bool = False,
     num_lessons: int = 10,
 ) -> Dict[int, Dict[str, Tuple[float, float]]]:
     n = num_lessons - 1
@@ -39,8 +40,12 @@ def create_train_configs_tbu(
         t = (i - 1) / float(denom)
         x_upper = x_first + (x_final - x_first) * t
         y_upper = y_first + (y_final - y_first) * t
-        th0_upper = th0_first + (th0_final - th0_first) * t
-        dth_upper = dth_first + (dth_final - dth_first) * t
+        if persist_max_angles:
+            th0_upper = th0_final
+            dth_upper = dth_final
+        else:
+            th0_upper = th0_first + (th0_final - th0_first) * t
+            dth_upper = dth_first + (dth_final - dth_first) * t
         configs[i] = {
             "x_range": (x_lower, x_upper),
             "y_range": (-y_upper, y_upper),
@@ -142,7 +147,7 @@ def load_controller(
                 nn.Linear(100, 1),
             )
         elif inference_mode == "me":
-            model = TruckController(state_dim=4)
+            model = TruckController()
         else:
             raise ValueError(f"Unsupported inference_mode={inference_mode}")
         model.load_state_dict(obj)
@@ -242,6 +247,13 @@ def main() -> None:
         default="student",
         help="student: 1-step lag action application; me: apply predicted action immediately.",
     )
+    parser.add_argument(
+        "--curriculum-mode",
+        type=str,
+        choices=["full", "xy_only"],
+        default="full",
+        help="full: expand x/y/theta/delta together; xy_only: expand x/y only while theta/delta stay at max.",
+    )
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -254,11 +266,15 @@ def main() -> None:
     )
 
     model = load_controller(args.checkpoint, device, args.inference_mode)
-    curriculum = create_train_configs_tbu(num_lessons=10)
+    curriculum = create_train_configs_tbu(
+        num_lessons=10,
+        persist_max_angles=(args.curriculum_mode == "xy_only"),
+    )
 
     print(f"checkpoint={args.checkpoint}")
     print(f"samples_per_stage={args.samples_per_stage} max_steps={cfg.max_steps} success_radius={cfg.success_radius}")
     print(f"inference_mode={args.inference_mode}")
+    print(f"curriculum_mode={args.curriculum_mode}")
     print("")
 
     all_denom = 0.0

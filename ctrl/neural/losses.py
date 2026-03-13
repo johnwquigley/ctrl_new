@@ -40,7 +40,7 @@ def controller_loss_terms(
     final_theta0_pen = (theta0[..., -1]).pow(2).sum()
     final_theta1_pen = (theta1[..., -1]).pow(2).sum()
 
-    delta_thresh = torch.deg2rad(torch.tensor(75.0, device=traj.device, dtype=traj.dtype))
+    delta_thresh = torch.deg2rad(torch.tensor(88.0, device=traj.device, dtype=traj.dtype))
     jackknife_pen = torch.where(
         wrapped_delta >= delta_thresh,
         (wrapped_delta - delta_thresh).pow(2),
@@ -56,7 +56,7 @@ def controller_loss_terms(
         + torch.relu(trailer_y - (ymax - CONTROLLER_BOUNDARY_MARGIN)).pow(2)
     ).mean()
 
-    total_pen = final_x_pen + final_y_pen + final_theta0_pen + final_theta1_pen
+    total_pen = final_x_pen + final_y_pen + final_theta0_pen + final_theta1_pen + jackknife_pen
     return {
         "total": total_pen,
         "final_x": final_x_pen,

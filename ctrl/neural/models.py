@@ -49,14 +49,14 @@ class PhysicsTruckModel(nn.Module):
 
 
 class TruckController(nn.Module):
-    def __init__(self, state_dim: int = 4, action_dim: int = 1):
+    def __init__(self, hidden_size: int = 100):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(state_dim, 64),
+            nn.Linear(4, hidden_size),
             nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(32, action_dim),
+            nn.Linear(hidden_size, 1),
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:

@@ -156,6 +156,9 @@ def train_controller(
             step = 0
             while step < max_rollout_steps and alive.any():
                 raw_action = controller(current_state)
+                # action_clipped = raw_action.clamp(-torch.pi / 4, torch.pi / 4)
+                # # Straight-through clamp: bounded forward action with unclipped gradient path.
+                # action = raw_action + (action_clipped - raw_action).detach()
                 action = raw_action.clamp(-torch.pi / 4, torch.pi / 4)
                 step_input = torch.cat((action, current_state), dim=-1)
                 proposed_next_state = emulator(step_input)

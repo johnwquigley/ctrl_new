@@ -157,7 +157,7 @@ def detect_jackknife(x, limit_deg=90.0):
     return torch.any(torch.abs(alpha) > limit)
 
 
-def _plan_truck_projected(x0, y, n_steps, cost_fn, u_limit_deg=45.0):
+def _plan_truck(x0, y, n_steps, cost_fn, u_limit_deg=45.0, projected=True):
     def e(u):
         x = integrate(truck_dynamics, x0, u)
         return cost_fn(y, x, u)
@@ -166,7 +166,7 @@ def _plan_truck_projected(x0, y, n_steps, cost_fn, u_limit_deg=45.0):
         e,
         n_steps,
         c=1,
-        projected=True,
+        projected=projected,
         u_limit_deg=u_limit_deg,
         outer_steps=1,
     )
@@ -184,18 +184,20 @@ def _run_one_sample_worker(args):
         terminal_filter,
         u_limit_deg,
         use_action_cost,
+        projected,
     ) = args
 
     cost_fn = cost_truck_with_action_cost if use_action_cost else cost_truck
     results = []
 
     for n_steps in n_list:
-        u = _plan_truck_projected(
+        u = _plan_truck(
             x0,
             y_goal,
             n_steps,
             cost_fn=cost_fn,
             u_limit_deg=u_limit_deg,
+            projected=projected,
         )
         x_traj = integrate(truck_dynamics, x0, u)
         err = error_truck(x_traj, y_goal).item()
@@ -247,6 +249,7 @@ def generate_data_fast(
     n_list=None,
     u_limit_deg=45.0,
     use_action_cost=True,
+    projected=True,
     out_path=None,
 ):
     torch.manual_seed(seed)
@@ -267,7 +270,7 @@ def generate_data_fast(
         x0_list.append(x0)
 
     worker_args = [
-        (x0, n_list, y_goal, eps, terminal_filter, u_limit_deg, use_action_cost)
+        (x0, n_list, y_goal, eps, terminal_filter, u_limit_deg, use_action_cost, projected)
         for x0 in x0_list
     ]
 
