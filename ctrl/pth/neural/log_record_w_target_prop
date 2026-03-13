@@ -1,0 +1,69 @@
+loaded warm-start controller ckpt: ctrl/pth/neural/controller_target_prop_init.pth
+[curriculum] stage=1/1 episodes=1000000 epochs=1 x=(10.0, 35.0) y=(-7.0, 7.0) theta0_deg=(-180.0, 180.0) delta_deg=(-45.0, 45.0) env_x=(0.0, 50.0) env_y=(-15.0, 15.0)
+Creating controller dataset: 100%|██████████| 1000000/1000000 [00:00<00:00, 1216833.32it/s]
+Training Controller Epoch 1/1:   3%|▎         | 499/15625 [01:26<43:00,  5.86it/s]
+[live] batch=500 loss=187.918 avg_steps_recent=564.8 stop_reason(jack/oob/success/timeout)=0.160/0.800/0.036/0.004 final_dist<0.1=0.036 final_dist<1.0=0.366
+Training Controller Epoch 1/1:   6%|▋         | 999/15625 [02:45<38:57,  6.26it/s]  
+[live] batch=1000 loss=49.496 avg_steps_recent=542.6 stop_reason(jack/oob/success/timeout)=0.153/0.760/0.086/0.001 final_dist<0.1=0.086 final_dist<1.0=0.603
+Training Controller Epoch 1/1:  10%|▉         | 1499/15625 [04:01<35:16,  6.67it/s]
+[live] batch=1500 loss=116.648 avg_steps_recent=514.8 stop_reason(jack/oob/success/timeout)=0.148/0.755/0.097/0.000 final_dist<0.1=0.097 final_dist<1.0=0.684
+Training Controller Epoch 1/1:  13%|█▎        | 1999/15625 [05:15<34:40,  6.55it/s]
+[live] batch=2000 loss=144.363 avg_steps_recent=504.5 stop_reason(jack/oob/success/timeout)=0.143/0.708/0.149/0.000 final_dist<0.1=0.149 final_dist<1.0=0.763
+Training Controller Epoch 1/1:  16%|█▌        | 2499/15625 [06:28<31:53,  6.86it/s]
+[live] batch=2500 loss=100.380 avg_steps_recent=500.5 stop_reason(jack/oob/success/timeout)=0.116/0.699/0.185/0.000 final_dist<0.1=0.185 final_dist<1.0=0.812
+Training Controller Epoch 1/1:  19%|█▉        | 2999/15625 [07:40<30:32,  6.89it/s]
+[live] batch=3000 loss=107.362 avg_steps_recent=497.7 stop_reason(jack/oob/success/timeout)=0.108/0.647/0.244/0.000 final_dist<0.1=0.244 final_dist<1.0=0.835
+Training Controller Epoch 1/1:  22%|██▏       | 3499/15625 [08:53<30:40,  6.59it/s]
+[live] batch=3500 loss=51.807 avg_steps_recent=531.4 stop_reason(jack/oob/success/timeout)=0.082/0.626/0.292/0.000 final_dist<0.1=0.292 final_dist<1.0=0.869
+Training Controller Epoch 1/1:  26%|██▌       | 3999/15625 [10:11<31:12,  6.21it/s]
+[live] batch=4000 loss=46.914 avg_steps_recent=554.2 stop_reason(jack/oob/success/timeout)=0.054/0.605/0.341/0.000 final_dist<0.1=0.341 final_dist<1.0=0.908
+Training Controller Epoch 1/1:  29%|██▉       | 4499/15625 [11:29<28:27,  6.52it/s]
+[live] batch=4500 loss=48.487 avg_steps_recent=539.1 stop_reason(jack/oob/success/timeout)=0.043/0.585/0.372/0.000 final_dist<0.1=0.372 final_dist<1.0=0.928
+Training Controller Epoch 1/1:  32%|███▏      | 4999/15625 [12:45<26:18,  6.73it/s]
+[live] batch=5000 loss=44.485 avg_steps_recent=529.6 stop_reason(jack/oob/success/timeout)=0.040/0.492/0.469/0.000 final_dist<0.1=0.469 final_dist<1.0=0.936
+Training Controller Epoch 1/1:  35%|███▌      | 5499/15625 [13:58<24:07,  7.00it/s]
+[live] batch=5500 loss=0.099 avg_steps_recent=512.2 stop_reason(jack/oob/success/timeout)=0.031/0.450/0.518/0.000 final_dist<0.1=0.518 final_dist<1.0=0.948
+Training Controller Epoch 1/1:  38%|███▊      | 5999/15625 [15:10<22:31,  7.12it/s]
+[live] batch=6000 loss=0.107 avg_steps_recent=506.5 stop_reason(jack/oob/success/timeout)=0.022/0.336/0.642/0.000 final_dist<0.1=0.642 final_dist<1.0=0.960
+Training Controller Epoch 1/1:  42%|████▏     | 6499/15625 [16:22<21:31,  7.07it/s]
+[live] batch=6500 loss=5.757 avg_steps_recent=508.7 stop_reason(jack/oob/success/timeout)=0.020/0.370/0.610/0.000 final_dist<0.1=0.610 final_dist<1.0=0.964
+Training Controller Epoch 1/1:  45%|████▍     | 6999/15625 [17:35<21:05,  6.81it/s]
+[live] batch=7000 loss=45.050 avg_steps_recent=504.2 stop_reason(jack/oob/success/timeout)=0.037/0.396/0.567/0.000 final_dist<0.1=0.567 final_dist<1.0=0.949
+Training Controller Epoch 1/1:  48%|████▊     | 7499/15625 [18:47<19:45,  6.85it/s]
+[live] batch=7500 loss=31.865 avg_steps_recent=506.7 stop_reason(jack/oob/success/timeout)=0.023/0.417/0.561/0.000 final_dist<0.1=0.561 final_dist<1.0=0.963
+Training Controller Epoch 1/1:  51%|█████     | 7999/15625 [20:00<18:12,  6.98it/s]
+[live] batch=8000 loss=0.040 avg_steps_recent=504.3 stop_reason(jack/oob/success/timeout)=0.017/0.364/0.619/0.000 final_dist<0.1=0.619 final_dist<1.0=0.970
+Training Controller Epoch 1/1:  54%|█████▍    | 8499/15625 [21:12<16:33,  7.17it/s]
+[live] batch=8500 loss=25.579 avg_steps_recent=503.7 stop_reason(jack/oob/success/timeout)=0.013/0.290/0.697/0.000 final_dist<0.1=0.697 final_dist<1.0=0.975
+Training Controller Epoch 1/1:  58%|█████▊    | 8999/15625 [22:25<16:49,  6.56it/s]
+[live] batch=9000 loss=68.098 avg_steps_recent=503.4 stop_reason(jack/oob/success/timeout)=0.021/0.330/0.649/0.000 final_dist<0.1=0.649 final_dist<1.0=0.968
+Training Controller Epoch 1/1:  61%|██████    | 9499/15625 [23:37<15:00,  6.81it/s]
+[live] batch=9500 loss=0.077 avg_steps_recent=504.7 stop_reason(jack/oob/success/timeout)=0.012/0.364/0.624/0.000 final_dist<0.1=0.624 final_dist<1.0=0.980
+Training Controller Epoch 1/1:  64%|██████▍   | 9999/15625 [24:49<13:31,  6.93it/s]
+[live] batch=10000 loss=0.168 avg_steps_recent=500.6 stop_reason(jack/oob/success/timeout)=0.021/0.380/0.599/0.000 final_dist<0.1=0.599 final_dist<1.0=0.972
+Training Controller Epoch 1/1:  67%|██████▋   | 10499/15625 [26:00<12:11,  7.01it/s]
+[live] batch=10500 loss=22.725 avg_steps_recent=498.9 stop_reason(jack/oob/success/timeout)=0.014/0.242/0.744/0.000 final_dist<0.1=0.744 final_dist<1.0=0.980
+Training Controller Epoch 1/1:  70%|███████   | 10999/15625 [27:12<11:18,  6.82it/s]
+[live] batch=11000 loss=30.194 avg_steps_recent=508.6 stop_reason(jack/oob/success/timeout)=0.008/0.317/0.675/0.000 final_dist<0.1=0.675 final_dist<1.0=0.987
+Training Controller Epoch 1/1:  74%|███████▎  | 11499/15625 [28:24<10:00,  6.87it/s]
+[live] batch=11500 loss=0.025 avg_steps_recent=503.9 stop_reason(jack/oob/success/timeout)=0.011/0.254/0.734/0.000 final_dist<0.1=0.734 final_dist<1.0=0.982
+Training Controller Epoch 1/1:  77%|███████▋  | 11999/15625 [29:36<08:25,  7.17it/s]
+[live] batch=12000 loss=27.056 avg_steps_recent=504.1 stop_reason(jack/oob/success/timeout)=0.013/0.281/0.706/0.000 final_dist<0.1=0.706 final_dist<1.0=0.983
+Training Controller Epoch 1/1:  80%|███████▉  | 12499/15625 [30:48<07:32,  6.91it/s]
+[live] batch=12500 loss=77.451 avg_steps_recent=501.8 stop_reason(jack/oob/success/timeout)=0.017/0.362/0.621/0.000 final_dist<0.1=0.621 final_dist<1.0=0.977
+Training Controller Epoch 1/1:  83%|████████▎ | 12999/15625 [32:00<06:01,  7.26it/s]
+[live] batch=13000 loss=25.707 avg_steps_recent=497.3 stop_reason(jack/oob/success/timeout)=0.011/0.273/0.716/0.000 final_dist<0.1=0.716 final_dist<1.0=0.984
+Training Controller Epoch 1/1:  86%|████████▋ | 13499/15625 [33:13<05:11,  6.83it/s]
+[live] batch=13500 loss=21.868 avg_steps_recent=505.2 stop_reason(jack/oob/success/timeout)=0.016/0.383/0.601/0.000 final_dist<0.1=0.601 final_dist<1.0=0.981
+Training Controller Epoch 1/1:  90%|████████▉ | 13999/15625 [34:25<03:42,  7.32it/s]
+[live] batch=14000 loss=0.034 avg_steps_recent=503.0 stop_reason(jack/oob/success/timeout)=0.009/0.236/0.754/0.000 final_dist<0.1=0.754 final_dist<1.0=0.988
+Training Controller Epoch 1/1:  93%|█████████▎| 14499/15625 [35:37<02:36,  7.19it/s]
+[live] batch=14500 loss=26.091 avg_steps_recent=510.9 stop_reason(jack/oob/success/timeout)=0.016/0.304/0.679/0.000 final_dist<0.1=0.679 final_dist<1.0=0.980
+Training Controller Epoch 1/1:  96%|█████████▌| 14999/15625 [36:48<01:26,  7.25it/s]
+[live] batch=15000 loss=0.034 avg_steps_recent=498.0 stop_reason(jack/oob/success/timeout)=0.013/0.215/0.772/0.000 final_dist<0.1=0.772 final_dist<1.0=0.982
+Training Controller Epoch 1/1:  99%|█████████▉| 15499/15625 [37:59<00:17,  7.02it/s]
+[live] batch=15500 loss=0.050 avg_steps_recent=502.1 stop_reason(jack/oob/success/timeout)=0.014/0.307/0.679/0.000 final_dist<0.1=0.679 final_dist<1.0=0.983
+                                                                                    
+Epoch 1/1, Controller Training Loss: 3149.666779, Avg Rollout Steps: 513.2, Final Alive Ratio: 0.001
+saved controller ckpt: ctrl/pth/neural/controller_epoch_001.pth
+saved controller ckpt: ctrl/pth/neural/controller_latest.pth
