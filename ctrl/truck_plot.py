@@ -219,21 +219,39 @@ def plot_truck_fixed_view(
     save_path=None,
     play_speed: float = 1.0,
     pad_ratio: float = 0.05,
+    labels=None,
+    colors=None,
 ):
     plt.style.use(['dark_background', 'bmh'])
     fig, ax = plt.subplots(figsize=(9, 5), dpi=100)
     ax.set_facecolor('black')
 
-    l, d = 1.0, 4.0
+    if isinstance(coords, (list, tuple)):
+        trajectories = [traj.detach().cpu() if isinstance(traj, torch.Tensor) else torch.as_tensor(traj) for traj in coords]
+    else:
+        trajectories = [coords.detach().cpu() if isinstance(coords, torch.Tensor) else torch.as_tensor(coords)]
+
+    if labels is None:
+        labels = [f'Trajectory {i + 1}' for i in range(len(trajectories))]
+    if colors is None:
+        colors = ['C0', 'C1', 'C2', 'C3']
+    if len(labels) != len(trajectories):
+        raise ValueError('labels must match number of trajectories')
+
+    l = float(getattr(cfg, 'wheelbase', 1.0))
+    d = float(getattr(cfg, 'hitch_length', 4.0))
     cab_w, tr_w = 1.0, 1.0
     delta_theta_warn = np.pi / 2
 
-    xmin, xmax = cfg.env_x_range
-    ymin, ymax = cfg.env_y_range
-    xpad = (xmax - xmin) * float(pad_ratio)
-    ypad = (ymax - ymin) * float(pad_ratio)
-    ax.set_xlim(float(xmin) - xpad, float(xmax) + xpad)
-    ax.set_ylim(float(ymin) - ypad, float(ymax) + ypad)
+    xs = []
+    ys = []
+    for traj in trajectories:
+        xs.append(traj[:, 0].detach().cpu().numpy())
+        ys.append(traj[:, 1].detach().cpu().numpy())
+        trailer_x, trailer_y = trailer_xy(traj)
+        xs.append(trailer_x.detach().cpu().numpy())
+        ys.append(trailer_y.detach().cpu().numpy())
+
     ax.set_aspect('equal')
     ax.set_xticks([])
     ax.set_yticks([])
@@ -242,14 +260,39 @@ def plot_truck_fixed_view(
         target_x, target_y = 0.0, 0.0
     else:
         target_x, target_y = float(y_target[0]), float(y_target[1])
+
+    xs.append(np.array([target_x]))
+    ys.append(np.array([target_y]))
+    xmin = min(float(np.min(arr)) for arr in xs)
+    xmax = max(float(np.max(arr)) for arr in xs)
+    ymin = min(float(np.min(arr)) for arr in ys)
+    ymax = max(float(np.max(arr)) for arr in ys)
+    xspan = max(1.0, xmax - xmin)
+    yspan = max(1.0, ymax - ymin)
+    xpad = xspan * float(pad_ratio) + 0.5 * d
+    ypad = yspan * float(pad_ratio) + 0.5 * d
+    ax.set_xlim(xmin - xpad, xmax + xpad)
+    ax.set_ylim(ymin - ypad, ymax + ypad)
+
     ax.scatter(target_x, target_y, marker='x', color='darkgray',
                s=60, zorder=10, label='Target')
 
-    cab_patch = patches.Polygon([[0, 0]], color='C2', alpha=1.0, zorder=5)
-    trailer_patch = patches.Polygon([[0, 0]], color='C0', alpha=1.0, zorder=4)
-    ax.add_patch(cab_patch)
-    ax.add_patch(trailer_patch)
-    ax.plot(coords[:, 0], coords[:, 1], 'w--', alpha=0.2, lw=1)
+    cab_patches = []
+    trailer_patches = []
+    legend_handles = [
+        plt.Line2D([0], [0], marker='x', color='darkgray', linestyle='None', label='Target')
+    ]
+    for idx, traj in enumerate(trajectories):
+        color = colors[idx % len(colors)]
+        trace_color = color
+        cab_patch = patches.Polygon([[0, 0]], facecolor=color, edgecolor='white', linewidth=0.8, alpha=0.95, zorder=6 + idx)
+        trailer_patch = patches.Polygon([[0, 0]], facecolor=color, edgecolor='white', linewidth=0.8, alpha=0.45, zorder=5 + idx)
+        ax.add_patch(cab_patch)
+        ax.add_patch(trailer_patch)
+        ax.plot(traj[:, 0], traj[:, 1], '--', color=trace_color, alpha=0.25, lw=1.5)
+        cab_patches.append(cab_patch)
+        trailer_patches.append(trailer_patch)
+        legend_handles.append(plt.Line2D([0], [0], color=color, lw=2, label=labels[idx]))
 
     warn_text = ax.text(
         0.02, 0.95, '',
@@ -271,20 +314,24 @@ def plot_truck_fixed_view(
         return (rect @ rot.T) + np.array([cx, cy])
 
     def update(frame):
-        state = coords[frame].numpy()
-        x, y, th_c, th_t = state[0], state[1], state[2], state[3]
+        artists = []
+        jackknifed = []
+        for idx, traj in enumerate(trajectories):
+            state = traj[min(frame, len(traj) - 1)].numpy()
+            x, y, th_c, th_t = state[0], state[1], state[2], state[3]
+            color = colors[idx % len(colors)]
 
-        cab_patch.set_xy(get_poly(x, y, th_c, l, cab_w))
-        trailer_patch.set_xy(get_poly(x, y, th_t, d, tr_w, is_trailer=True))
+            cab_patches[idx].set_xy(get_poly(x, y, th_c, l, cab_w))
+            trailer_patches[idx].set_xy(get_poly(x, y, th_t, d, tr_w, is_trailer=True))
+            trailer_patches[idx].set_facecolor('red' if abs(th_c - th_t) > delta_theta_warn else color)
+            jackknifed.append(abs(th_c - th_t) > delta_theta_warn)
+            artists.extend((cab_patches[idx], trailer_patches[idx]))
 
-        if abs(th_c - th_t) > delta_theta_warn:
-            trailer_patch.set_color('red')
-            warn_text.set_text('JACKKNIFED!')
-        else:
-            trailer_patch.set_color('C0')
-            warn_text.set_text('')
+        warn_text.set_text('JACKKNIFED!' if any(jackknifed) else '')
+        artists.append(warn_text)
+        return tuple(artists)
 
-        return cab_patch, trailer_patch, warn_text
+    ax.legend(handles=legend_handles, loc='upper right', fontsize=9, framealpha=0.7)
 
     speed = max(0.05, float(play_speed))
     interval_ms = max(1, int(round(50.0 / speed)))
@@ -292,7 +339,7 @@ def plot_truck_fixed_view(
     anim = animation.FuncAnimation(
         fig,
         update,
-        frames=len(coords),
+        frames=max(len(traj) for traj in trajectories),
         blit=True,
         interval=interval_ms,
     )
